@@ -151,13 +151,16 @@ app.get("/leaderboard", (req, res) => {
   const winsByImage = {};
   const matchesByImage = {};
 
+  // Initialize wins and matches for every image.
   images.forEach((img) => {
     winsByImage[img.id] = 0;
     matchesByImage[img.id] = 0;
   });
 
+  // Iterate through each matchup.
   Object.values(matchups).forEach((match) => {
     const imageIds = Object.keys(match);
+    // Total votes in this matchup is the sum of wins for both images.
     const totalVotes = imageIds.reduce((sum, key) => sum + match[key], 0);
     imageIds.forEach((id) => {
       winsByImage[id] += match[id];
@@ -165,26 +168,43 @@ app.get("/leaderboard", (req, res) => {
     });
   });
 
+  // Bayesian smoothing parameters.
   const alpha = 1;
   const beta = 1;
 
-  const leaderboard = images
-    .filter((img) => matchesByImage[img.id] > 0)
-    .map((img) => {
-      const wins = winsByImage[img.id];
-      const matches = matchesByImage[img.id];
-      const bayesianWinRate = ((wins + alpha) / (matches + alpha + beta)) * 100;
-      return {
-        id: img.id,
-        link: img.link,
-        totalMatchups: matches,
-        bayesianWinRate: bayesianWinRate.toFixed(1),
-      };
-    });
+  // Build the leaderboard data for all images.
+  const leaderboard = images.map((img) => {
+    const wins = winsByImage[img.id] || 0;
+    const matches = matchesByImage[img.id] || 0;
+    let bayesianWinRate = null;
+    if (matches > 0) {
+      bayesianWinRate = ((wins + alpha) / (matches + alpha + beta)) * 100;
+    }
+    return {
+      id: img.id,
+      link: img.link,
+      totalMatchups: matches,
+      bayesianWinRate:
+        bayesianWinRate !== null ? bayesianWinRate.toFixed(1) : "N/A",
+    };
+  });
 
-  leaderboard.sort(
-    (a, b) => Number(b.bayesianWinRate) - Number(a.bayesianWinRate)
-  );
+  // Sort: images with matches come first (sorted by Bayesian win rate descending),
+  // followed by images with no matches.
+  leaderboard.sort((a, b) => {
+    const aHasMatches = a.totalMatchups > 0;
+    const bHasMatches = b.totalMatchups > 0;
+    if (aHasMatches && bHasMatches) {
+      return Number(b.bayesianWinRate) - Number(a.bayesianWinRate);
+    } else if (aHasMatches) {
+      return -1;
+    } else if (bHasMatches) {
+      return 1;
+    } else {
+      return a.id.localeCompare(b.id);
+    }
+  });
+
   res.json(leaderboard);
 });
 

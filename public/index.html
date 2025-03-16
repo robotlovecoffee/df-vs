@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Top 50 Images Leaderboard (Dark Mode)</title>
+    <title>Top Images Leaderboard</title>
     <style>
       :root {
         --bg-color: #121212;
@@ -14,7 +14,6 @@
         --modal-overlay-bg: rgba(0, 0, 0, 0.6);
         --border-color: #444;
       }
-
       body {
         margin: 0;
         padding: 20px;
@@ -25,10 +24,17 @@
         flex-direction: column;
         align-items: center;
       }
+      h1,
+      h2 {
+        text-align: center;
+      }
       h1 {
         font-size: 2rem;
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: 1.5rem;
         margin-bottom: 20px;
-        text-align: center;
       }
       .grid {
         display: grid;
@@ -48,7 +54,8 @@
       .grid img:hover {
         transform: scale(1.05);
       }
-      .cta-button {
+      .cta-button,
+      .toggle-button {
         background: var(--accent-color);
         color: var(--text-color);
         padding: 15px 30px;
@@ -60,7 +67,8 @@
         transition: background 0.2s ease;
         margin-bottom: 30px;
       }
-      .cta-button:hover {
+      .cta-button:hover,
+      .toggle-button:hover {
         background: var(--accent-hover-color);
       }
       /* Modal Styles */
@@ -122,11 +130,15 @@
     </style>
   </head>
   <body>
-    <h1>Top 50 Images Leaderboard</h1>
-    <div class="grid" id="grid">
-      <!-- Top 50 images will be injected here -->
+    <h1>DailySmol Voting</h1>
+    <h2>Leaderboard</h2>
+    <div>
+      <a href="vote.html" class="cta-button">Vote Now</a>
+      <button id="toggle-view" class="toggle-button">Show All Images</button>
     </div>
-    <a href="vote.html" class="cta-button">Vote Now</a>
+    <div class="grid" id="grid">
+      <!-- Images will be injected here -->
+    </div>
 
     <!-- Modal for image stats -->
     <div class="modal-overlay" id="modal-overlay">
@@ -140,8 +152,10 @@
     </div>
 
     <script>
-      // Global variable to store the leaderboard data.
+      // Global variable to store leaderboard data.
       let leaderboardData = [];
+      // Flag to toggle view (false: show top 50, true: show all).
+      let showAll = false;
 
       // Function to fetch leaderboard data from /leaderboard endpoint.
       function fetchLeaderboard() {
@@ -156,30 +170,28 @@
           );
       }
 
-      // Initial fetch and grid population.
-      fetchLeaderboard().then((data) => {
-        const top50 = data.slice(0, 50);
-        const grid = document.getElementById("grid");
-        top50.forEach((item) => {
-          const img = document.createElement("img");
-          img.src = item.link;
-          img.alt = item.id;
-          // Save the image ID in dataset.
-          img.dataset.id = item.id;
-          grid.appendChild(img);
-
-          // On click, open the modal with updated data.
-          img.addEventListener("click", () => {
-            openModalWithUpdatedData(item.id);
+      // Function to populate the grid.
+      function populateGrid() {
+        fetchLeaderboard().then((data) => {
+          const grid = document.getElementById("grid");
+          grid.innerHTML = ""; // Clear existing content.
+          const imagesToShow = showAll ? data : data.slice(0, 50);
+          imagesToShow.forEach((item) => {
+            const img = document.createElement("img");
+            img.src = item.link;
+            img.alt = item.id;
+            img.dataset.id = item.id;
+            img.addEventListener("click", () => {
+              openModalWithUpdatedData(item.id);
+            });
+            grid.appendChild(img);
           });
         });
-      });
+      }
 
-      // Function to open the modal and update data for a given image id.
+      // Function to open the modal with updated data for a given image id.
       function openModalWithUpdatedData(imageId) {
-        // Re-fetch the leaderboard to get the latest data.
         fetchLeaderboard().then(() => {
-          // Find the image data by its ID.
           const item = leaderboardData.find((x) => x.id === imageId);
           if (item) {
             document.getElementById("modal-img").src = item.link;
@@ -191,17 +203,26 @@
                 ? "N/A"
                 : item.bayesianWinRate + "%";
             document.getElementById("modal-winrate").textContent =
-              "Bayesian Win Rate: " + displayWinRate;
+              "Win Rate: " + displayWinRate;
             document.getElementById("modal-overlay").classList.add("show");
           }
         });
       }
 
+      // Toggle view button event listener.
+      document.getElementById("toggle-view").addEventListener("click", () => {
+        showAll = !showAll;
+        document.getElementById("toggle-view").textContent = showAll
+          ? "Show Top 50 Images"
+          : "Show All Images";
+        populateGrid();
+      });
+
       // Modal close handler.
       document.getElementById("modal-close").addEventListener("click", () => {
         document.getElementById("modal-overlay").classList.remove("show");
       });
-      // Also close the modal when clicking outside modal content.
+      // Also close modal when clicking outside modal content.
       document
         .getElementById("modal-overlay")
         .addEventListener("click", (e) => {
@@ -209,6 +230,9 @@
             document.getElementById("modal-overlay").classList.remove("show");
           }
         });
+
+      // Initial grid population.
+      populateGrid();
     </script>
   </body>
 </html>
