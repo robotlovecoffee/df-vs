@@ -5,7 +5,7 @@ const app = express();
 const port = 3000;
 
 // Set testing mode - if true, only use the first 10 images.
-const testing = true;
+const testing = false;
 
 // Serve static files from the "public" directory and parse JSON bodies.
 app.use(express.static("public"));
