@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Top Images Leaderboard</title>
+    <title>DailySmol Voting</title>
     <style>
       :root {
         --bg-color: #121212;
@@ -27,6 +27,8 @@
       h1,
       h2 {
         text-align: center;
+        margin: 0;
+        padding: 0;
       }
       h1 {
         font-size: 2rem;
@@ -36,6 +38,21 @@
         font-size: 1.5rem;
         margin-bottom: 20px;
       }
+
+      .button-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 30px;
+        flex-wrap: wrap; /* If you want them strictly on one line, set flex-wrap: nowrap */
+      }
+      .button-container > * {
+        /* Remove extra bottom margins from the buttons to keep them aligned */
+        margin-bottom: 0;
+      }
+
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -54,6 +71,7 @@
       .grid img:hover {
         transform: scale(1.05);
       }
+
       .cta-button,
       .toggle-button {
         background: var(--accent-color);
@@ -65,12 +83,12 @@
         text-decoration: none;
         cursor: pointer;
         transition: background 0.2s ease;
-        margin-bottom: 30px;
       }
       .cta-button:hover,
       .toggle-button:hover {
         background: var(--accent-hover-color);
       }
+
       /* Modal Styles */
       .modal-overlay {
         position: fixed;
@@ -132,12 +150,14 @@
   <body>
     <h1>DailySmol Voting</h1>
     <h2>Leaderboard</h2>
-    <div>
+
+    <div class="button-container">
       <a href="vote.html" class="cta-button">Vote Now</a>
       <button id="toggle-view" class="toggle-button">
         Show All Images (over 1k)
       </button>
     </div>
+
     <div class="grid" id="grid">
       <!-- Images will be injected here -->
     </div>
@@ -216,7 +236,7 @@
         showAll = !showAll;
         document.getElementById("toggle-view").textContent = showAll
           ? "Show Top 50 Images"
-          : "Show All Images";
+          : "Show All Images (over 1k)";
         populateGrid();
       });
 
