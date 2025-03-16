@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vote for Your Favorite Image</title>
+    <style>
+      /* Mobile-first styling with side-by-side images */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+      }
+      h1 {
+        font-size: 1.8rem;
+        text-align: center;
+        color: #333;
+        margin-bottom: 20px;
+      }
+      #images-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+        width: 100%;
+        max-width: 600px;
+      }
+      .image-box {
+        flex: 1;
+        cursor: pointer;
+      }
+      .image-box img {
+        width: 100%;
+        height: auto;
+        border: 2px solid #333;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s ease;
+      }
+      .image-box img:hover {
+        transform: scale(1.05);
+      }
+      /* Button styling for Skip and Quit */
+      .btn {
+        background: #e74c3c;
+        color: #fff;
+        border: none;
+        padding: 12px 20px;
+        font-size: 1rem;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.2s ease;
+        margin-bottom: 20px;
+        margin-right: 10px;
+      }
+      .btn:hover {
+        background: #c0392b;
+      }
+      .btn.quit {
+        background: #555;
+      }
+      .btn.quit:hover {
+        background: #444;
+      }
+      @media (min-width: 768px) {
+        h1 {
+          font-size: 2.2rem;
+        }
+        .btn {
+          font-size: 1.1rem;
+        }
+      }
+      /* Modal styles */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        z-index: 1000;
+      }
+      .modal-overlay.show {
+        opacity: 1;
+        visibility: visible;
+      }
+      .modal {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        max-width: 90%;
+        width: 300px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      }
+      .modal h2 {
+        margin-top: 0;
+        font-size: 1.5rem;
+        color: #333;
+      }
+      .modal .result-details {
+        display: flex;
+        justify-content: space-around;
+        margin: 15px 0;
+      }
+      .modal .result-details div {
+        text-align: center;
+      }
+      .modal .result-details img {
+        width: 80px;
+        height: auto;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        /* Default border to ensure same layout */
+        border: 5px solid transparent;
+      }
+      .modal p {
+        font-size: 1rem;
+        color: #555;
+        white-space: pre-wrap;
+      }
+      .modal button {
+        background: #3498db;
+        color: #fff;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background 0.2s ease;
+      }
+      .modal button:hover {
+        background: #2980b9;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Vote for Your Favorite Image</h1>
+    <div id="images-container">
+      <div class="image-box">
+        <img id="left-slot" src="" alt="Left Image" />
+      </div>
+      <div class="image-box">
+        <img id="right-slot" src="" alt="Right Image" />
+      </div>
+    </div>
+    <!-- Action buttons -->
+    <div>
+      <button id="skip-btn" class="btn">Skip</button>
+      <button id="quit-btn" class="btn quit">Quit</button>
+    </div>
+
+    <!-- Modal for showing matchup results -->
+    <div id="result-modal" class="modal-overlay">
+      <div class="modal">
+        <h2>Matchup Results</h2>
+        <div class="result-details" id="result-details">
+          <!-- Mini thumbnails, borders, and stats will be injected here -->
+        </div>
+        <button id="close-modal">Close</button>
+      </div>
+    </div>
+
+    <script>
+      let currentImages = null;
+      let allImages = []; // All images loaded from image.json for animation
+      const baseAnimationDuration = 3000; // Base duration in ms
+
+      // Load the complete list of images from image.json for the slot machine effect.
+      fetch("/image.json")
+        .then((response) => response.json())
+        .then((data) => {
+          allImages = data;
+        })
+        .catch((error) => console.error("Error loading all images:", error));
+
+      // Fetch the final matchup images from the /vote endpoint.
+      function fetchFinalMatchup() {
+        return fetch("/vote")
+          .then((response) => response.json())
+          .then((data) => {
+            currentImages = data;
+            return data;
+          });
+      }
+
+      // Animate a given slot (element) with deceleration over a given duration.
+      function animateSlot(element, finalImageLink, duration, callback) {
+        const startTime = performance.now();
+        let lastUpdateTime = startTime;
+        function animate(time) {
+          const elapsed = time - startTime;
+          const t = Math.min(elapsed / duration, 1);
+          const easeOutCubic = 1 - Math.pow(1 - t, 3);
+          const minInterval = 50;
+          const maxInterval = 500;
+          const currentInterval =
+            minInterval + (maxInterval - minInterval) * easeOutCubic;
+          if (time - lastUpdateTime >= currentInterval) {
+            if (allImages.length > 0) {
+              element.src =
+                allImages[Math.floor(Math.random() * allImages.length)].link;
+            }
+            lastUpdateTime = time;
+          }
+          if (elapsed < duration) {
+            requestAnimationFrame(animate);
+          } else {
+            element.src = finalImageLink;
+            if (callback) callback();
+          }
+        }
+        requestAnimationFrame(animate);
+      }
+
+      // Start decelerating animations for both slots with randomized durations.
+      function startDeceleratingAnimation(finalImages) {
+        const leftSlot = document.getElementById("left-slot");
+        const rightSlot = document.getElementById("right-slot");
+        // Disable clicking during animation.
+        leftSlot.style.pointerEvents = "none";
+        rightSlot.style.pointerEvents = "none";
+
+        // Randomize durations by adding an offset between -150ms and +150ms.
+        const leftDuration =
+          baseAnimationDuration + (Math.random() * 300 - 150);
+        const rightDuration =
+          baseAnimationDuration + (Math.random() * 300 - 150);
+
+        // Animate left and right slots independently.
+        animateSlot(leftSlot, finalImages.image1.link, leftDuration, () => {
+          leftSlot.style.pointerEvents = "auto";
+        });
+        animateSlot(rightSlot, finalImages.image2.link, rightDuration, () => {
+          rightSlot.style.pointerEvents = "auto";
+        });
+      }
+
+      // Load a new matchup with the decelerating slot animation.
+      function loadMatchupWithAnimation() {
+        fetchFinalMatchup().then((finalImages) => {
+          startDeceleratingAnimation(finalImages);
+        });
+      }
+
+      // Show the modal with matchup results.
+      // Highlights the voted image by applying a thicker, colored border.
+      function showResultModal(matchup, winnerId) {
+        const modal = document.getElementById("result-modal");
+        const detailsContainer = document.getElementById("result-details");
+
+        const winsImage1 = matchup[currentImages.image1.id] || 0;
+        const winsImage2 = matchup[currentImages.image2.id] || 0;
+        const totalMatches = winsImage1 + winsImage2;
+        const winRate1 = totalMatches
+          ? ((winsImage1 / totalMatches) * 100).toFixed(1)
+          : 0;
+        const winRate2 = totalMatches
+          ? ((winsImage2 / totalMatches) * 100).toFixed(1)
+          : 0;
+
+        // Set border style based on vote.
+        const borderStyle1 =
+          currentImages.image1.id === winnerId
+            ? "5px solid green"
+            : "5px solid transparent";
+        const borderStyle2 =
+          currentImages.image2.id === winnerId
+            ? "5px solid green"
+            : "5px solid transparent";
+
+        detailsContainer.innerHTML = `
+        <div>
+          <img src="${currentImages.image1.link}" alt="Image 1 Thumbnail" style="border: ${borderStyle1};">
+          <p>${totalMatches} matches</p>
+          <p>${winRate1}% wins (${winsImage1} wins)</p>
+        </div>
+        <div>
+          <img src="${currentImages.image2.link}" alt="Image 2 Thumbnail" style="border: ${borderStyle2};">
+          <p>${totalMatches} matches</p>
+          <p>${winRate2}% wins (${winsImage2} wins)</p>
+        </div>
+      `;
+
+        modal.classList.add("show");
+      }
+
+      // Hide the modal.
+      function hideResultModal() {
+        const modal = document.getElementById("result-modal");
+        modal.classList.remove("show");
+      }
+
+      // Record a vote and then display matchup results in the modal.
+      // Pass winnerId to highlight the selected image.
+      function vote(winnerId) {
+        const payload = {
+          image1: currentImages.image1.id,
+          image2: currentImages.image2.id,
+          winner: winnerId,
+        };
+
+        fetch("/vote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            showResultModal(data.matchup, winnerId);
+          })
+          .catch((error) => console.error("Error recording vote:", error));
+      }
+
+      // Setup click handlers after DOM content is loaded.
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("left-slot").addEventListener("click", () => {
+          if (currentImages) vote(currentImages.image1.id);
+        });
+        document.getElementById("right-slot").addEventListener("click", () => {
+          if (currentImages) vote(currentImages.image2.id);
+        });
+        document.getElementById("skip-btn").addEventListener("click", () => {
+          loadMatchupWithAnimation();
+        });
+        document.getElementById("quit-btn").addEventListener("click", () => {
+          // Redirect back to the landing page (index.html)
+          window.location.href = "index.html";
+        });
+        document.getElementById("close-modal").addEventListener("click", () => {
+          hideResultModal();
+          loadMatchupWithAnimation();
+        });
+        // Allow clicking outside the modal content to close it.
+        document
+          .getElementById("result-modal")
+          .addEventListener("click", (e) => {
+            if (e.target.id === "result-modal") {
+              hideResultModal();
+              loadMatchupWithAnimation();
+            }
+          });
+        // Start the first matchup with animation.
+        loadMatchupWithAnimation();
+      });
+    </script>
+  </body>
+</html>
