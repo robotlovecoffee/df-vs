@@ -3,20 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Leaderboard</title>
+    <title>Top 50 Images Leaderboard (Dark Mode)</title>
     <style>
+      :root {
+        --bg-color: #121212;
+        --text-color: #f4f4f4;
+        --card-bg: #1e1e1e;
+        --accent-color: #3498db;
+        --accent-hover-color: #2980b9;
+        --modal-overlay-bg: rgba(0, 0, 0, 0.6);
+        --border-color: #444;
+      }
+
       body {
         margin: 0;
         padding: 20px;
         font-family: Arial, sans-serif;
-        background: #f4f4f4;
+        background: var(--bg-color);
+        color: var(--text-color);
         display: flex;
         flex-direction: column;
         align-items: center;
       }
       h1 {
         font-size: 2rem;
-        color: #333;
         margin-bottom: 20px;
         text-align: center;
       }
@@ -32,15 +42,15 @@
         width: 100%;
         border-radius: 8px;
         cursor: pointer;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
         transition: transform 0.2s ease;
       }
       .grid img:hover {
         transform: scale(1.05);
       }
       .cta-button {
-        background: #3498db;
-        color: #fff;
+        background: var(--accent-color);
+        color: var(--text-color);
         padding: 15px 30px;
         font-size: 1.2rem;
         border: none;
@@ -51,7 +61,7 @@
         margin-bottom: 30px;
       }
       .cta-button:hover {
-        background: #2980b9;
+        background: var(--accent-hover-color);
       }
       /* Modal Styles */
       .modal-overlay {
@@ -60,7 +70,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.6);
+        background: var(--modal-overlay-bg);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -74,13 +84,14 @@
         opacity: 1;
       }
       .modal {
-        background: #fff;
+        background: var(--card-bg);
+        color: var(--text-color);
         padding: 20px;
         border-radius: 8px;
         width: 90%;
         max-width: 400px;
         text-align: center;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
       }
       .modal img {
         width: 150px;
@@ -96,8 +107,8 @@
         margin: 5px 0;
       }
       .modal button {
-        background: #e74c3c;
-        color: #fff;
+        background: #444;
+        color: var(--text-color);
         border: none;
         padding: 10px 15px;
         border-radius: 5px;
@@ -106,12 +117,12 @@
         margin-top: 15px;
       }
       .modal button:hover {
-        background: #c0392b;
+        background: #555;
       }
     </style>
   </head>
   <body>
-    <h1>Leaderboard (current top 50)</h1>
+    <h1>Top 50 Images Leaderboard</h1>
     <div class="grid" id="grid">
       <!-- Top 50 images will be injected here -->
     </div>
@@ -129,47 +140,68 @@
     </div>
 
     <script>
-      // Fetch leaderboard data from /leaderboard endpoint.
-      fetch("/leaderboard")
-        .then((response) => response.json())
-        .then((data) => {
-          // Assume data is sorted in descending order by Bayesian win rate.
-          const top50 = data.slice(0, 50);
-          const grid = document.getElementById("grid");
-          top50.forEach((item) => {
-            const img = document.createElement("img");
-            img.src = item.link;
-            img.alt = item.id;
-            // Store server properties in dataset.
-            img.dataset.totalMatchups = item.totalMatchups || 0;
-            img.dataset.bayesianWinRate =
-              item.bayesianWinRate !== undefined ? item.bayesianWinRate : "N/A";
+      // Global variable to store the leaderboard data.
+      let leaderboardData = [];
 
-            // On click, open the modal with stats.
-            img.addEventListener("click", () => {
-              // Populate modal with the image stats.
-              document.getElementById("modal-img").src = item.link;
-              document.getElementById("modal-title").textContent = item.id;
-              document.getElementById("modal-matches").textContent =
-                "Matches: " + (item.totalMatchups || 0);
-              const displayWinRate =
-                item.bayesianWinRate === "N/A"
-                  ? "N/A"
-                  : item.bayesianWinRate + "%";
-              document.getElementById("modal-winrate").textContent =
-                "Bayesian Win Rate: " + displayWinRate;
-              document.getElementById("modal-overlay").classList.add("show");
-            });
-            grid.appendChild(img);
+      // Function to fetch leaderboard data from /leaderboard endpoint.
+      function fetchLeaderboard() {
+        return fetch("/leaderboard")
+          .then((response) => response.json())
+          .then((data) => {
+            leaderboardData = data;
+            return data;
+          })
+          .catch((error) =>
+            console.error("Error fetching leaderboard:", error)
+          );
+      }
+
+      // Initial fetch and grid population.
+      fetchLeaderboard().then((data) => {
+        const top50 = data.slice(0, 50);
+        const grid = document.getElementById("grid");
+        top50.forEach((item) => {
+          const img = document.createElement("img");
+          img.src = item.link;
+          img.alt = item.id;
+          // Save the image ID in dataset.
+          img.dataset.id = item.id;
+          grid.appendChild(img);
+
+          // On click, open the modal with updated data.
+          img.addEventListener("click", () => {
+            openModalWithUpdatedData(item.id);
           });
-        })
-        .catch((error) => console.error("Error fetching leaderboard:", error));
+        });
+      });
+
+      // Function to open the modal and update data for a given image id.
+      function openModalWithUpdatedData(imageId) {
+        // Re-fetch the leaderboard to get the latest data.
+        fetchLeaderboard().then(() => {
+          // Find the image data by its ID.
+          const item = leaderboardData.find((x) => x.id === imageId);
+          if (item) {
+            document.getElementById("modal-img").src = item.link;
+            document.getElementById("modal-title").textContent = item.id;
+            document.getElementById("modal-matches").textContent =
+              "Matches: " + (item.totalMatchups || 0);
+            const displayWinRate =
+              item.bayesianWinRate === "N/A"
+                ? "N/A"
+                : item.bayesianWinRate + "%";
+            document.getElementById("modal-winrate").textContent =
+              "Bayesian Win Rate: " + displayWinRate;
+            document.getElementById("modal-overlay").classList.add("show");
+          }
+        });
+      }
 
       // Modal close handler.
       document.getElementById("modal-close").addEventListener("click", () => {
         document.getElementById("modal-overlay").classList.remove("show");
       });
-      // Also close modal when clicking outside modal content.
+      // Also close the modal when clicking outside modal content.
       document
         .getElementById("modal-overlay")
         .addEventListener("click", (e) => {

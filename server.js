@@ -4,8 +4,8 @@ const path = require("path");
 const app = express();
 const port = 3000;
 
-// Set testing mode - if true, only use the first 10 images.
-const testing = false;
+// Set testing mode if needed (for example, to restrict to a subset of images)
+// const testing = true;
 
 // Serve static files from the "public" directory and parse JSON bodies.
 app.use(express.static("public"));
@@ -17,10 +17,10 @@ const dataFile = path.join(__dirname, "data.json");
 // Load images from image.json
 let images = JSON.parse(fs.readFileSync("image.json", "utf8"));
 
-// If in testing mode, limit images to first 10.
-if (testing) {
-  images = images.slice(0, 10);
-}
+// Example for testing mode: if you want to use only a subset of images
+// if (testing) {
+//   images = images.slice(0, 10);
+// }
 
 // In-memory data structures for vote data.
 let ratings = {};
@@ -50,7 +50,7 @@ function saveData() {
   });
 }
 
-// Elo rating update function (still used internally).
+// Elo rating update function (used internally for head-to-head updates).
 function updateElo(winner, loser, k = 32) {
   const ratingWinner = ratings[winner];
   const ratingLoser = ratings[loser];
@@ -60,6 +60,23 @@ function updateElo(winner, loser, k = 32) {
     1 / (1 + Math.pow(10, (ratingWinner - ratingLoser) / 400));
   ratings[winner] = ratingWinner + k * (1 - expectedWinner);
   ratings[loser] = ratingLoser + k * (0 - expectedLoser);
+}
+
+// Helper function: Calculate global stats for an image based on all matchups.
+function getGlobalStats(imageId) {
+  let wins = 0;
+  let matches = 0;
+  Object.values(matchups).forEach((match) => {
+    if (match.hasOwnProperty(imageId)) {
+      const totalVotes = Object.values(match).reduce(
+        (sum, val) => sum + val,
+        0
+      );
+      wins += match[imageId];
+      matches += totalVotes;
+    }
+  });
+  return { wins, matches };
 }
 
 // Endpoint: GET /vote - Returns two random images for voting.
@@ -75,7 +92,7 @@ app.get("/vote", (req, res) => {
   });
 });
 
-// Endpoint: POST /vote - Records a vote, updates Elo ratings, and saves data.
+// Endpoint: POST /vote - Records a vote, updates Elo ratings, and returns global stats for the winner.
 app.post("/vote", (req, res) => {
   const { image1, image2, winner } = req.body;
 
@@ -105,31 +122,42 @@ app.post("/vote", (req, res) => {
   // Save updated data to file.
   saveData();
 
-  // Return the updated matchup results for this pair.
+  // Compute global stats for the winning image.
+  const stats = getGlobalStats(winner);
+  const alpha = 1,
+    beta = 1;
+  const bayesianWinRate =
+    stats.matches > 0
+      ? (((stats.wins + alpha) / (stats.matches + alpha + beta)) * 100).toFixed(
+          1
+        )
+      : "N/A";
+
+  // Return only the global stats for the winner.
   res.json({
     message: "Vote recorded",
-    matchup: matchups[pairKey],
+    winner: winner,
+    globalStats: {
+      wins: stats.wins,
+      matches: stats.matches,
+      bayesianWinRate: bayesianWinRate,
+    },
   });
 });
 
-// Endpoint: GET /leaderboard - Returns all images with total matchups and Bayesian win rate.
-// Only images that have been in at least one matchup are returned.
+// Endpoint: GET /leaderboard - Returns all images (only those with matches) ranked by Bayesian win rate.
 app.get("/leaderboard", (req, res) => {
-  // Compute total wins and total matches for each image by iterating over all matchups.
+  // Compute total wins and total matches for each image.
   const winsByImage = {};
   const matchesByImage = {};
 
-  // Initialize wins and matches for every image.
   images.forEach((img) => {
     winsByImage[img.id] = 0;
     matchesByImage[img.id] = 0;
   });
 
-  // Iterate through each matchup.
   Object.values(matchups).forEach((match) => {
-    // Each matchup object has keys for the image IDs and values as win counts.
     const imageIds = Object.keys(match);
-    // Total votes in this matchup is the sum of wins for both images.
     const totalVotes = imageIds.reduce((sum, key) => sum + match[key], 0);
     imageIds.forEach((id) => {
       winsByImage[id] += match[id];
@@ -137,12 +165,9 @@ app.get("/leaderboard", (req, res) => {
     });
   });
 
-  // Bayesian smoothing parameters.
   const alpha = 1;
   const beta = 1;
 
-  // Build the leaderboard data.
-  // Only include images that have been in at least one matchup.
   const leaderboard = images
     .filter((img) => matchesByImage[img.id] > 0)
     .map((img) => {
@@ -157,7 +182,6 @@ app.get("/leaderboard", (req, res) => {
       };
     });
 
-  // Sort the leaderboard in descending order of Bayesian win rate.
   leaderboard.sort(
     (a, b) => Number(b.bayesianWinRate) - Number(a.bayesianWinRate)
   );
